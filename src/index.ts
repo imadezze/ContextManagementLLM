@@ -4,7 +4,6 @@
  */
 
 import * as readline from 'readline';
-import { config } from 'dotenv';
 import { run } from '@openai/agents';
 import { KnowledgeBaseService } from './services/knowledge-base.js';
 import { RetrievalService } from './services/retrieval.js';
@@ -12,9 +11,6 @@ import { ContextManager } from './services/context-manager.js';
 import { createAgent } from './services/agent.js';
 import { Message } from './types/index.js';
 import { CONFIG } from './config.js';
-
-// Load environment variables
-config();
 
 async function main() {
   // Validate environment
@@ -27,6 +23,7 @@ async function main() {
   console.log('Context-Aware AI Agent');
   console.log('=====================');
   console.log(`Token Budget: ${CONFIG.MAX_TOKENS} tokens`);
+  console.log(`Compression Strategy: ${CONFIG.COMPRESSION_STRATEGY} (from env: ${process.env.COMPRESSION_STRATEGY || 'not set'})`);
   console.log('Commands: "exit" to quit, "/save" to save conversation');
   console.log();
 
@@ -102,8 +99,8 @@ async function main() {
       // SELECT: Retrieve relevant knowledge
       const relevantKnowledge = retrievalService.retrieve(userInput);
 
-      // COMPRESS: Build context with token management
-      const context = contextManager.buildContext(
+      // COMPRESS: Build context with token management (supports pruning or summarization)
+      const context = await contextManager.buildContext(
         conversationHistory,
         relevantKnowledge,
         userInput

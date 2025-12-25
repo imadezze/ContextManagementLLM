@@ -31,14 +31,27 @@ cp .env.example .env
 3. Add your OpenAI API key to `.env`:
 ```bash
 OPENAI_API_KEY=your_api_key_here
-DEBUG=false        # Set to true for detailed token usage logs
-MAX_TOKENS=1500    # Optional: Adjust token budget (default: 1500)
+DEBUG=false                    # Set to true for detailed token usage logs
+MAX_TOKENS=1500                # Optional: Adjust token budget (default: 1500)
+TOP_K_RETRIEVAL=3              # Optional: Max knowledge entries to retrieve (default: 3)
+COMPRESSION_STRATEGY=prune     # Optional: prune (default) or summarize
+SUMMARY_MAX_TOKENS=500         # Optional: Max tokens for summaries (default: 500)
+
+# Optional: Budget allocation percentages (default values shown)
+BUDGET_SAFETY_MARGIN_PCT=7     # Safety buffer [105 tokens for 1500]
+BUDGET_SYSTEM_PROMPT_PCT=10    # System instructions [150 tokens for 1500]
+BUDGET_KNOWLEDGE_PCT=40        # Knowledge entries [600 tokens for 1500]
+BUDGET_CONVERSATION_PCT=43     # Conversation history [645 tokens for 1500]
 ```
 
 **Configuration Options**:
 - `OPENAI_API_KEY` (required): Your OpenAI API key
 - `DEBUG` (optional): `true` for detailed logs, `false` for normal mode
 - `MAX_TOKENS` (optional): Maximum context window size (default: 1500)
+- `TOP_K_RETRIEVAL` (optional): Max knowledge entries per query (default: 3)
+- `COMPRESSION_STRATEGY` (optional): `prune` (default, fast) or `summarize` (preserves context)
+- `SUMMARY_MAX_TOKENS` (optional): Max tokens for AI-generated summaries (default: 500)
+- `BUDGET_*_PCT` (optional): Budget allocation percentages (see above for defaults)
 
 4. Build the project:
 ```bash
@@ -126,7 +139,9 @@ Defined in `src/services/context-manager.ts`:
 
 ## What Happens When Conversation Gets Long
 
-### Pruning Strategy (COMPRESS)
+The system supports two compression strategies (configurable via `COMPRESSION_STRATEGY`):
+
+### Strategy 1: Pruning (Default - FIFO)
 
 When conversation history exceeds its budget:
 
@@ -134,6 +149,17 @@ When conversation history exceeds its budget:
 2. **Remove oldest first** - FIFO (First In, First Out)
 3. **Log pruning** - Debug mode shows what was removed
 4. **Graceful degradation** - Context quality degrades smoothly
+5. **Fast & free** - No additional API calls required
+
+### Strategy 2: Summarization
+
+Alternative approach that preserves old context:
+
+1. **Keep recent messages** - Latest exchanges preserved intact
+2. **Summarize old messages** - Older context compressed into summary
+3. **Preserve information** - Key points from old messages retained
+4. **Additional cost** - Requires extra API call to create summary
+5. **Better continuity** - Maintains more conversational context
 
 ### Example: Before Pruning
 
@@ -286,10 +312,11 @@ This ensures **we control every message** sent to the LLM.
 4. **Query expansion** - Handle synonyms and related terms
 
 ### Context Management Improvements
-1. **Summarization** - Compress old messages instead of removing
+1. ✅ **Summarization** - Implemented as alternative compression strategy
 2. **Importance scoring** - Keep critical context even if old
 3. **Sliding window with overlap** - Preserve more coherence
 4. **Dynamic budget allocation** - Adjust based on conversation needs
+5. **Hybrid compression** - Combine summarization + importance scoring
 
 ### Production Features
 1. **Session persistence** - Save/restore conversations

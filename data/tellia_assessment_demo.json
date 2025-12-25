@@ -1,0 +1,227 @@
+[
+    {
+      "id": "doc_1",
+      "title": "Company Overview",
+      "content": "Acme Systems is a software company that builds tools for small and medium sized businesses. The main product is a web platform that helps teams manage internal documentation, workflows, and customer support processes. The platform is used by teams across engineering, operations, and customer success."
+    },
+    {
+      "id": "doc_2",
+      "title": "Product Features",
+      "content": "The Acme platform includes document management, task tracking, and an internal search engine. Users can create documents, link them together, and share them with their team. The system also supports basic analytics to track document usage and engagement."
+    },
+    {
+      "id": "doc_3",
+      "title": "User Authentication",
+      "content": "Users authenticate using an email and password combination. Passwords are hashed before being stored. The platform also supports optional two factor authentication using one time codes sent by email. Password reset links expire after 30 minutes."
+    },
+    {
+      "id": "doc_4",
+      "title": "User Roles and Permissions",
+      "content": "There are three main user roles: Admin, Editor, and Viewer. Admins can manage users and billing settings. Editors can create and edit documents. Viewers can only read existing documents. Permissions are enforced at the workspace level."
+    },
+    {
+      "id": "doc_5",
+      "title": "Billing and Subscriptions",
+      "content": "Acme Systems operates on a subscription based pricing model. Plans are billed monthly or yearly. Billing is handled through a third party payment provider. Invoices are generated automatically and can be downloaded from the billing section of the dashboard."
+    },
+    {
+      "id": "doc_6",
+      "title": "Data Privacy and Security",
+      "content": "All user data is encrypted at rest and in transit. Access to production systems is restricted to a limited number of employees. Acme Systems does not sell user data to third parties. Data retention policies comply with standard industry practices."
+    },
+    {
+      "id": "doc_7",
+      "title": "API Access",
+      "content": "The platform provides a REST API for programmatic access to documents and users. API access is available on higher tier plans. Authentication is done using API keys which can be rotated from the dashboard. Rate limits apply to prevent abuse."
+    },
+    {
+      "id": "doc_8",
+      "title": "Workspace Concept",
+      "content": "A workspace represents an isolated environment for a team or organization. Each workspace has its own users, documents, and settings. Users can belong to multiple workspaces but must switch context to access each one."
+    },
+    {
+      "id": "doc_9",
+      "title": "Search Functionality",
+      "content": "The internal search engine allows users to search documents by title and content. Search results are ranked based on relevance and recent activity. The search engine does not currently support advanced filters or boolean operators."
+    },
+    {
+      "id": "doc_10",
+      "title": "Limitations",
+      "content": "The platform does not currently support offline access. There is no native mobile application, and the web interface is optimized for desktop usage. Advanced analytics and custom reporting are planned but not yet available."
+    },
+    {
+      "id": "doc_11",
+      "title": "Customer Support",
+      "content": "Customer support is available via email during business hours. Response times typically range from one to two business days. There is no live chat or phone support at this time."
+    },
+    {
+      "id": "doc_12",
+      "title": "Data Export",
+      "content": "Users can export their documents as PDF or Markdown files. Bulk export of an entire workspace is available to Admin users. Exported data does not include usage analytics."
+    },
+    {
+      "id": "doc_13",
+      "title": "Document Templates",
+      "content": "Users can create reusable templates for common document types such as meeting notes, project briefs, and onboarding guides. Templates can be shared across the workspace or kept private. Template variables allow automatic population of dates and user names."
+    },
+    {
+      "id": "doc_14",
+      "title": "Version History",
+      "content": "Every document maintains a complete version history. Users can view previous versions and restore them if needed. Version history is retained for 90 days on standard plans and indefinitely on enterprise plans. Each version shows the author and timestamp of changes."
+    },
+    {
+      "id": "doc_15",
+      "title": "Collaboration Features",
+      "content": "Multiple users can edit a document simultaneously with real time synchronization. Changes are highlighted with the author name. Users can leave comments on specific sections of a document. Comment threads can be resolved or reopened as needed."
+    },
+    {
+      "id": "doc_16",
+      "title": "Notification System",
+      "content": "Users receive notifications when they are mentioned in a document or comment. Notifications can be delivered via email or in app alerts. Notification preferences can be customized per workspace. Daily digest emails summarize activity from the past 24 hours."
+    },
+    {
+      "id": "doc_17",
+      "title": "Integrations Overview",
+      "content": "The platform integrates with popular third party tools including Slack, Google Drive, and Jira. Integrations are configured at the workspace level by Admin users. Webhook support allows custom integrations with internal systems."
+    },
+    {
+      "id": "doc_18",
+      "title": "Slack Integration",
+      "content": "The Slack integration allows users to receive document notifications in Slack channels. Users can also create new documents directly from Slack using slash commands. Document previews are shown inline when links are shared in Slack."
+    },
+    {
+      "id": "doc_19",
+      "title": "Google Drive Integration",
+      "content": "Users can import documents from Google Drive into their workspace. Changes made in the platform do not sync back to Google Drive. The integration requires users to authorize access to their Google account."
+    },
+    {
+      "id": "doc_20",
+      "title": "Keyboard Shortcuts",
+      "content": "The platform supports keyboard shortcuts for common actions. Press Ctrl K to open the command palette. Press Ctrl S to save the current document. Press Ctrl Shift F to open global search. A full list of shortcuts is available in the help menu."
+    },
+    {
+      "id": "doc_21",
+      "title": "Mobile Access",
+      "content": "The web application is accessible on mobile browsers but is not optimized for small screens. A dedicated mobile application is on the product roadmap but not yet available. Users can view and read documents on mobile but editing is limited."
+    },
+    {
+      "id": "doc_22",
+      "title": "Audit Logs",
+      "content": "Admin users can view audit logs that track user activity within the workspace. Audit logs include document views, edits, and permission changes. Logs are retained for 30 days on standard plans and one year on enterprise plans."
+    },
+    {
+      "id": "doc_23",
+      "title": "Single Sign On",
+      "content": "Enterprise plans support single sign on using SAML 2.0. SSO allows users to authenticate using their corporate identity provider. Supported providers include Okta, Azure AD, and Google Workspace. SSO configuration requires Admin access."
+    },
+    {
+      "id": "doc_24",
+      "title": "Custom Domains",
+      "content": "Enterprise customers can use a custom domain for their workspace. Custom domains require DNS configuration and SSL certificate provisioning. The setup process typically takes 24 to 48 hours to complete."
+    },
+    {
+      "id": "doc_25",
+      "title": "Folder Organization",
+      "content": "Documents can be organized into folders for easier navigation. Folders can be nested up to five levels deep. Users can drag and drop documents between folders. Folder permissions inherit from the parent folder by default."
+    },
+    {
+      "id": "doc_26",
+      "title": "Tagging System",
+      "content": "Users can add tags to documents for categorization and filtering. Tags are workspace specific and can be created by any Editor or Admin. The search functionality supports filtering by tags. Documents can have multiple tags applied."
+    },
+    {
+      "id": "doc_27",
+      "title": "Favorites and Bookmarks",
+      "content": "Users can mark documents as favorites for quick access. Favorites are personal and not visible to other users. The sidebar shows a list of recently viewed and favorited documents. Users can also create bookmarks to specific sections within a document."
+    },
+    {
+      "id": "doc_28",
+      "title": "Document Sharing",
+      "content": "Documents can be shared with users outside the workspace using public links. Public links can be set to expire after a specified time. Link recipients can view but not edit the document. Password protection is available for sensitive documents."
+    },
+    {
+      "id": "doc_29",
+      "title": "Trash and Recovery",
+      "content": "Deleted documents are moved to the trash and can be recovered within 30 days. After 30 days, documents are permanently deleted and cannot be recovered. Admin users can view and restore documents deleted by any user in the workspace."
+    },
+    {
+      "id": "doc_30",
+      "title": "Bulk Operations",
+      "content": "Admin users can perform bulk operations on multiple documents at once. Supported operations include moving, tagging, and deleting documents. Bulk operations are processed asynchronously and may take several minutes for large selections."
+    },
+    {
+      "id": "doc_31",
+      "title": "Document Locking",
+      "content": "Editors can lock a document to prevent others from making changes. Locked documents display a lock icon and the name of the user who locked it. Only the user who locked the document or an Admin can unlock it."
+    },
+    {
+      "id": "doc_32",
+      "title": "Print Support",
+      "content": "Documents can be printed directly from the browser using the print function. The print layout removes navigation elements and optimizes content for paper. Users can choose to include or exclude comments in the printed output."
+    },
+    {
+      "id": "doc_33",
+      "title": "Embedding Content",
+      "content": "Users can embed external content in documents including YouTube videos, Google Maps, and Figma designs. Embedded content is rendered inline within the document. Some embeds require third party cookies to be enabled in the browser."
+    },
+    {
+      "id": "doc_34",
+      "title": "Table Support",
+      "content": "Documents support tables with basic formatting options. Users can add, remove, and resize columns and rows. Tables can be sorted by clicking on column headers. Cell merging and advanced formulas are not currently supported."
+    },
+    {
+      "id": "doc_35",
+      "title": "Image Uploads",
+      "content": "Users can upload images directly into documents by dragging and dropping or using the insert menu. Supported formats include PNG, JPG, GIF, and WebP. Images are automatically compressed to reduce storage usage. Maximum file size is 10 MB per image."
+    },
+    {
+      "id": "doc_36",
+      "title": "Code Blocks",
+      "content": "Documents support syntax highlighted code blocks for over 50 programming languages. Users can copy code with a single click. Code blocks can be collapsed to save space. Line numbers can be toggled on or off."
+    },
+    {
+      "id": "doc_37",
+      "title": "Task Lists",
+      "content": "Users can create task lists within documents using checkbox syntax. Tasks can be assigned to specific users and given due dates. Completed tasks are tracked and can be filtered. Task lists are useful for meeting notes and project planning."
+    },
+    {
+      "id": "doc_38",
+      "title": "Document Analytics",
+      "content": "Editors and Admins can view analytics for individual documents. Analytics include view count, unique viewers, and average time spent. Data is updated daily and retained for 90 days. Analytics are not available for Viewer role users."
+    },
+    {
+      "id": "doc_39",
+      "title": "Workspace Analytics",
+      "content": "Admin users can access workspace level analytics from the dashboard. Metrics include total documents, active users, and storage usage. Weekly reports can be sent via email. Analytics data can be exported as CSV files."
+    },
+    {
+      "id": "doc_40",
+      "title": "Onboarding Flow",
+      "content": "New users are guided through an onboarding flow when they first join a workspace. The flow introduces key features and helps users create their first document. Admins can customize the onboarding content for their workspace."
+    },
+    {
+      "id": "doc_41",
+      "title": "Help Center",
+      "content": "The help center contains articles and tutorials covering all platform features. Users can search the help center from within the application. Video tutorials are available for common workflows. The help center is updated regularly with new content."
+    },
+    {
+      "id": "doc_42",
+      "title": "Feedback System",
+      "content": "Users can submit feedback and feature requests through the in app feedback form. Feedback is reviewed by the product team on a weekly basis. Popular requests are added to the public roadmap. Users can vote on existing feature requests."
+    },
+    {
+      "id": "doc_43",
+      "title": "Status Page",
+      "content": "The public status page shows the current operational status of all platform services. Users can subscribe to receive notifications about incidents and maintenance. Historical uptime data is available for the past 90 days."
+    },
+    {
+      "id": "doc_44",
+      "title": "Backup and Recovery",
+      "content": "All workspace data is backed up daily to geographically distributed servers. Backups are retained for 30 days. In the event of data loss, users should contact support to request a restore. Full workspace restores may take up to 24 hours."
+    },
+    {
+      "id": "doc_45",
+      "title": "Compliance Certifications",
+      "content": "Acme Systems maintains SOC 2 Type II certification for security and availability. GDPR compliance is supported for customers in the European Union. Additional compliance certifications are available for enterprise customers upon request."
+    }
+]

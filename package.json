@@ -6,8 +6,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js"
+    "start": "node dist/src/index.js",
+    "dev": "tsc && node dist/src/index.js",
+    "test:prune": "tsc && node dist/tests/test-pruning-strategy.js",
+    "test:summarize": "tsc && node dist/tests/test-summarization-strategy.js",
+    "test:both": "npm run test:prune && echo '\n\n' && npm run test:summarize"
   },
   "keywords": ["ai", "agent", "context-management", "openai"],
   "author": "",
