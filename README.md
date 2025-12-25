@@ -9,6 +9,107 @@ This project demonstrates explicit context engineering for AI agents:
 - **SELECT Context**: Retrieve only relevant knowledge entries via keyword-based RAG
 - **COMPRESS Context**: Trim and manage conversation history to fit token budget
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           USER INPUT                                │
+│                        (CLI Interface)                              │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    KNOWLEDGE BASE SERVICE                           │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  Load: data/tellia_assessment_demo.json (35 entries)         │  │
+│  │  Extract keywords from each entry                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RETRIEVAL SERVICE (SELECT)                       │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  1. Extract keywords from user query                         │  │
+│  │  2. Score entries by term frequency (title weighted 3x)      │  │
+│  │  3. Return top-K most relevant entries                       │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                  CONTEXT MANAGER (COMPRESS)                         │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  TOKEN BUDGET ALLOCATION (configurable percentages):         │  │
+│  │  ┌────────────────────────────────────────────────────────┐  │  │
+│  │  │  System Prompt:    10% (~150 tokens)                   │  │  │
+│  │  │  Knowledge:        40% (~600 tokens) ← SELECT results  │  │  │
+│  │  │  Conversation:     43% (~645 tokens) ← COMPRESS here   │  │  │
+│  │  │  Safety Margin:     7% (~105 tokens)                   │  │  │
+│  │  └────────────────────────────────────────────────────────┘  │  │
+│  │                                                              │  │
+│  │  COMPRESSION STRATEGIES:                                     │  │
+│  │  ┌─ Pruning (FIFO) ──────────────────────────────────────┐  │  │
+│  │  │  • Remove oldest messages when budget exceeded         │  │  │
+│  │  │  • Fast, no API cost                                   │  │  │
+│  │  └────────────────────────────────────────────────────────┘  │  │
+│  │  ┌─ Summarization ───────────────────────────────────────┐  │  │
+│  │  │  • Summarize old messages using GPT-4o-mini           │  │  │
+│  │  │  • Preserves context, requires API call               │  │  │
+│  │  │  • Fallback to pruning (configurable)                 │  │  │
+│  │  └────────────────────────────────────────────────────────┘  │  │
+│  │                                                              │  │
+│  │  AGGRESSIVE COMPRESSION (when total exceeds MAX_TOKENS):    │  │
+│  │  • Automatically reduces conversation budget               │  │
+│  │  • Recalculates with tighter constraints                   │  │
+│  │  • Ensures system stays within limits                      │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      OPENAI AGENT (GPT-4o)                          │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  Input Context:                                              │  │
+│  │  • System Prompt + Knowledge Entries                         │  │
+│  │  • Compressed Conversation History                           │  │
+│  │  • Current User Query                                        │  │
+│  │                                                              │  │
+│  │  Total Tokens: ≤ MAX_TOKENS (default: 1500)                 │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        RESPONSE OUTPUT                              │
+│                   (with optional debug info)                        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components:
+
+1. **Knowledge Base Service** (`services/knowledge-base.ts`)
+   - Loads 35 knowledge entries from JSON
+   - Extracts and indexes keywords
+
+2. **Retrieval Service** (`services/retrieval.ts`)
+   - SELECT strategy: Keyword matching with TF scoring
+   - Retrieves top-K most relevant entries
+
+3. **Context Manager** (`services/context-manager.ts`)
+   - COMPRESS strategy: Token budget enforcement
+   - Two modes: Pruning (FIFO) or Summarization (AI-powered)
+   - Automatic aggressive compression on overflow
+
+4. **Agent Service** (`services/agent.ts`)
+   - OpenAI GPT-4o integration
+   - Receives managed context window
+
+5. **CLI Interface** (`index.ts`)
+   - Interactive terminal
+   - Commands: `/save`, `exit`
+   - Debug mode visualization
+
 ## Setup Instructions
 
 ### Prerequisites
