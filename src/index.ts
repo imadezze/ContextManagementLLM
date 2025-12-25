@@ -1,6 +1,6 @@
 /**
  * Context-Aware AI Agent - Main Entry Point
- * Implements custom context management with 1500 token limit
+ * Implements custom context management with configurable token limit
  */
 
 import * as readline from 'readline';
@@ -11,6 +11,7 @@ import { RetrievalService } from './services/retrieval.js';
 import { ContextManager } from './services/context-manager.js';
 import { createAgent } from './services/agent.js';
 import { Message } from './types/index.js';
+import { CONFIG } from './config.js';
 
 // Load environment variables
 config();
@@ -25,8 +26,9 @@ async function main() {
 
   console.log('Context-Aware AI Agent');
   console.log('=====================');
-  console.log('Token Budget: 1500 tokens');
-  console.log('Type "exit" to quit\n');
+  console.log(`Token Budget: ${CONFIG.MAX_TOKENS} tokens`);
+  console.log('Commands: "exit" to quit, "/save" to save conversation');
+  console.log();
 
   // Initialize services
   const knowledgeBase = new KnowledgeBaseService('./data/tellia_assessment_demo.json');
@@ -35,6 +37,7 @@ async function main() {
 
   // Conversation state
   const conversationHistory: Message[] = [];
+  let conversationLog: string[] = []; // Track what user sees on screen
 
   // Setup readline interface
   const rl = readline.createInterface({
@@ -57,9 +60,37 @@ async function main() {
         break;
       }
 
+      // Handle /save command
+      if (userInput.toLowerCase() === '/save') {
+        try {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+          const filename = `saved_conversations/conversation_${timestamp}.md`;
+          const fs = await import('fs');
+
+          const content = [
+            '# Conversation Log',
+            `**Saved:** ${new Date().toLocaleString()}`,
+            `**Debug Mode:** ${process.env.DEBUG === 'true' ? 'ON' : 'OFF'}`,
+            '',
+            '---',
+            '',
+            ...conversationLog
+          ].join('\n');
+
+          fs.writeFileSync(filename, content);
+          console.log(`\n✅ Conversation saved to: ${filename}\n`);
+        } catch (error) {
+          console.error(`\n❌ Failed to save conversation: ${error instanceof Error ? error.message : error}\n`);
+        }
+        continue;
+      }
+
       if (!userInput.trim()) {
         continue;
       }
+
+      // Log user input
+      conversationLog.push(`## You\n${userInput}\n`);
 
       // Add user message to history
       conversationHistory.push({
@@ -79,7 +110,14 @@ async function main() {
       );
 
       // Display token usage
-      console.log(`[${context.totalTokens}/1500 tokens]`);
+      const tokenInfo = `[${context.totalTokens}/${CONFIG.MAX_TOKENS} tokens]`;
+      console.log(tokenInfo);
+      conversationLog.push(`**Tokens:** ${tokenInfo}\n`);
+
+      // Save debug breakdown if available
+      if (context.debugInfo) {
+        conversationLog.push('```\n' + context.debugInfo + '```\n');
+      }
 
       // Create agent with custom context injected
       // We inject the system prompt and conversation history into the agent's instructions
@@ -91,21 +129,78 @@ async function main() {
           .map(m => `${m.role}: ${m.content}`)
           .join('\n');
 
-      // Run agent with just the current user message
-      const result = await run(contextualAgent, userInput);
-      const assistantResponse = result.finalOutput || 'No response generated';
+      // Run agent with retry logic for API errors
+      let assistantResponse: string | undefined;
+      let retries = 0;
+      const maxRetries = 3;
 
-      // Add assistant response to history
-      conversationHistory.push({
-        role: 'assistant',
-        content: assistantResponse,
-        timestamp: Date.now()
-      });
+      while (retries <= maxRetries) {
+        try {
+          const result = await run(contextualAgent, userInput);
+          assistantResponse = result.finalOutput || 'No response generated';
+          break; // Success, exit retry loop
+        } catch (apiError: any) {
+          const isRetryable = apiError?.status === 503 ||
+                             apiError?.status === 429 ||
+                             apiError?.code === 'ECONNRESET' ||
+                             apiError?.message?.includes('503') ||
+                             apiError?.message?.includes('timeout');
 
-      console.log(`\nAssistant: ${assistantResponse}`);
+          if (isRetryable && retries < maxRetries) {
+            retries++;
+            const waitTime = Math.min(1000 * Math.pow(2, retries - 1), 10000); // Exponential backoff, max 10s
 
-    } catch (error) {
-      console.error('\nError:', error instanceof Error ? error.message : error);
+            if (process.env.DEBUG === 'true') {
+              console.log(`\n[DEBUG] API error (${apiError?.status || 'unknown'}), retry ${retries}/${maxRetries} in ${waitTime}ms...`);
+            } else {
+              console.log(`\n⏳ Temporary issue, retrying...`);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          } else {
+            // Non-retryable error or max retries exceeded
+            throw apiError;
+          }
+        }
+      }
+
+      // Only add to history if we got a response
+      if (assistantResponse) {
+        conversationHistory.push({
+          role: 'assistant',
+          content: assistantResponse,
+          timestamp: Date.now()
+        });
+
+        console.log(`\nAssistant: ${assistantResponse}`);
+        conversationLog.push(`## Assistant\n${assistantResponse}\n`);
+      }
+
+    } catch (error: any) {
+      // User-friendly error messages
+      let errorMsg = '';
+      if (error?.status === 401 || error?.message?.includes('API key')) {
+        errorMsg = '❌ Error: Invalid API key. Please check your OPENAI_API_KEY in .env file';
+      } else if (error?.status === 429) {
+        errorMsg = '❌ Error: Rate limit exceeded. Please wait a moment and try again.';
+      } else if (error?.status === 503) {
+        errorMsg = '❌ Error: OpenAI service temporarily unavailable. Please try again in a moment.';
+      } else if (error?.code === 'ENOTFOUND' || error?.code === 'ECONNREFUSED') {
+        errorMsg = '❌ Error: Cannot connect to OpenAI. Please check your internet connection.';
+      } else {
+        errorMsg = '❌ Error: Unable to get response from AI';
+        if (process.env.DEBUG === 'true') {
+          errorMsg += `\n    Details: ${error?.message || error}`;
+          if (error?.stack) {
+            errorMsg += `\n    Stack: ${error.stack}`;
+          }
+        } else {
+          errorMsg += '\n    (Run with DEBUG=true for more details)';
+        }
+      }
+      console.error('\n' + errorMsg);
+      conversationLog.push(`## Error\n${errorMsg}\n`);
     }
   }
 

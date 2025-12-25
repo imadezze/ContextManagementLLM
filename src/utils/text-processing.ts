@@ -5,7 +5,10 @@
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
   'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
-  'to', 'was', 'will', 'with', 'what', 'when', 'where', 'who', 'how'
+  'to', 'was', 'will', 'with', 'what', 'when', 'where', 'who', 'how',
+  'about', 'all', 'any', 'but', 'can', 'did', 'do', 'if', 'no', 'not',
+  'or', 'so', 'such', 'than', 'then', 'there', 'these', 'they', 'this',
+  'those', 'you', 'your'
 ]);
 
 export class TextProcessor {

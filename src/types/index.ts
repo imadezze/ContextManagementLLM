@@ -19,6 +19,7 @@ export interface ContextWindow {
   knowledgeEntries: KnowledgeEntry[];
   conversationHistory: Message[];
   totalTokens: number;
+  debugInfo?: string; // Optional debug breakdown (when DEBUG=true)
 }
 
 export interface ContextBudget {

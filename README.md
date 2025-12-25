@@ -29,10 +29,16 @@ cp .env.example .env
 ```
 
 3. Add your OpenAI API key to `.env`:
-```
+```bash
 OPENAI_API_KEY=your_api_key_here
-DEBUG=false  # Set to true for detailed token usage logs
+DEBUG=false        # Set to true for detailed token usage logs
+MAX_TOKENS=1500    # Optional: Adjust token budget (default: 1500)
 ```
+
+**Configuration Options**:
+- `OPENAI_API_KEY` (required): Your OpenAI API key
+- `DEBUG` (optional): `true` for detailed logs, `false` for normal mode
+- `MAX_TOKENS` (optional): Maximum context window size (default: 1500)
 
 4. Build the project:
 ```bash
@@ -45,16 +51,21 @@ npm run build
 npm start
 ```
 
-Type your questions and press Enter. Type `exit` to quit.
+**Commands**:
+- Type your questions and press Enter
+- `exit` - Quit the application
+- `/save` - Save current conversation to file
+
+**Saved conversations** are stored in `saved_conversations/` folder as Markdown files.
 
 ## How Context is Built
 
 The context window is constructed in three stages:
 
 ### 1. System Prompt (10% of budget - ~150 tokens)
-- Base instructions for the agent
+- Base instructions for the agent (handles greetings and casual conversation naturally)
 - Formatted knowledge base entries
-- Rules for answering questions
+- Rules for prioritizing knowledge base for factual questions
 
 ### 2. Knowledge Entries (40% of budget - ~600 tokens)
 - **SELECT Strategy**: Retrieves top 3 most relevant entries using keyword matching

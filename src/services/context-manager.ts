@@ -1,27 +1,35 @@
 /**
  * Context Manager - COMPRESS Context Strategy
- * Manages context window with strict 1500 token budget
+ * Manages context window with configurable token budget
  */
 
 import { Message, KnowledgeEntry, ContextWindow, ContextBudget } from '../types/index.js';
 import { TokenCounter } from '../utils/token-counter.js';
+import { CONFIG } from '../config.js';
 
 export class ContextManager {
-  private readonly budget: ContextBudget = {
-    maxTokens: 1500,
-    safetyMargin: 100,
-    systemPromptBudget: 150,
-    knowledgeBudget: 600,
-    conversationBudget: 650
-  };
+  private readonly budget: ContextBudget;
 
-  private readonly systemPrompt = `You are a helpful assistant that answers questions based on a knowledge base.
+  constructor() {
+    const maxTokens = CONFIG.MAX_TOKENS;
+    // Calculate budgets as percentages of max tokens
+    this.budget = {
+      maxTokens,
+      safetyMargin: Math.floor(maxTokens * 0.07),      // 7%
+      systemPromptBudget: Math.floor(maxTokens * 0.10), // 10%
+      knowledgeBudget: Math.floor(maxTokens * 0.40),    // 40%
+      conversationBudget: Math.floor(maxTokens * 0.43)  // 43%
+    };
+  }
+
+  private readonly systemPrompt = `You are a helpful and friendly assistant.
 
 IMPORTANT RULES:
-1. If the answer is in the provided knowledge base below, use that information to answer
-2. If the answer is NOT in the knowledge base, clearly state: "I don't have that information in my knowledge base"
-3. Be concise and accurate
-4. Reference the knowledge base entries when appropriate`;
+1. Respond naturally to greetings, casual conversation, and general questions
+2. For factual or informational questions: prioritize using the knowledge base below
+3. If asked a factual question that's NOT in the knowledge base, clearly state: "I don't have that information in my knowledge base"
+4. Be concise, accurate, and friendly
+5. Reference knowledge base entries when using them to answer`;
 
   /**
    * Build context window with token budget enforcement
@@ -61,20 +69,95 @@ IMPORTANT RULES:
       }
     }
 
+    // Build debug info
+    let debugInfo: string | undefined;
     if (debug) {
-      console.log('\n[CONTEXT BREAKDOWN]');
-      console.log(`System prompt: ${TokenCounter.countText(this.systemPrompt)} tokens`);
-      console.log(`Knowledge entries: ${knowledgeTokens} tokens (${selectedKnowledge.length} entries)`);
-      console.log(`Conversation history: ${historyTokens} tokens (${prunedHistory.length} messages)`);
-      console.log(`Total: ${currentTokens}/${this.budget.maxTokens} tokens`);
-      console.log(`Available: ${available - currentTokens} tokens remaining\n`);
+      const systemTokens = TokenCounter.countText(this.systemPrompt);
+      const removedCount = conversationHistory.length - prunedHistory.length;
+
+      const lines: string[] = [];
+      lines.push('='.repeat(60));
+      lines.push('TOKEN BREAKDOWN FOR THIS EXCHANGE');
+      lines.push('='.repeat(60));
+
+      // 1. System Prompt
+      lines.push('');
+      lines.push(`1. System Prompt: ${systemTokens} tokens`);
+      lines.push(`   Budget: ${this.budget.systemPromptBudget} tokens`);
+      lines.push(`   Status: ${systemTokens <= this.budget.systemPromptBudget ? '✓' : '✗'}`);
+
+      // 2. Knowledge Entries Detail
+      lines.push('');
+      lines.push(`2. Knowledge Entries: ${knowledgeTokens} tokens (${selectedKnowledge.length} selected)`);
+      lines.push(`   Budget: ${this.budget.knowledgeBudget} tokens`);
+      lines.push(`   Status: ${knowledgeTokens <= this.budget.knowledgeBudget ? '✓' : '✗'}`);
+      if (selectedKnowledge.length > 0) {
+        selectedKnowledge.forEach((entry, idx) => {
+          const entryTokens = TokenCounter.countKnowledgeEntry(entry);
+          lines.push(`   Entry ${idx + 1}: "${entry.title.substring(0, 40)}..." = ${entryTokens} tokens`);
+        });
+      } else {
+        lines.push('   No relevant knowledge entries found');
+      }
+
+      // 3. Conversation History Detail
+      lines.push('');
+      lines.push(`3. Conversation History: ${historyTokens} tokens (${prunedHistory.length} messages)`);
+      lines.push(`   Budget: ${this.budget.conversationBudget} tokens`);
+      lines.push(`   Status: ${historyTokens <= this.budget.conversationBudget ? '✓' : '✗'}`);
+      if (prunedHistory.length > 0) {
+        prunedHistory.forEach((msg, idx) => {
+          const msgTokens = TokenCounter.countMessage(msg);
+          const preview = msg.content.substring(0, 50).replace(/\n/g, ' ');
+          lines.push(`   Msg ${idx + 1} [${msg.role}]: "${preview}..." = ${msgTokens} tokens`);
+        });
+      }
+
+      // 4. Pruning Info
+      if (removedCount > 0) {
+        const removedTokens = TokenCounter.countMessages(conversationHistory.slice(0, removedCount));
+        lines.push('');
+        lines.push(`   ⚠️  PRUNED: ${removedCount} old messages (${removedTokens} tokens removed)`);
+      }
+
+      // 5. Total Summary
+      lines.push('');
+      lines.push('4. Summary:');
+      lines.push(`   System:       ${systemTokens.toString().padStart(4)} tokens (${((systemTokens/this.budget.maxTokens)*100).toFixed(1)}%)`);
+      lines.push(`   Knowledge:    ${knowledgeTokens.toString().padStart(4)} tokens (${((knowledgeTokens/this.budget.maxTokens)*100).toFixed(1)}%)`);
+      lines.push(`   Conversation: ${historyTokens.toString().padStart(4)} tokens (${((historyTokens/this.budget.maxTokens)*100).toFixed(1)}%)`);
+      lines.push(`   ${'─'.repeat(30)}`);
+      lines.push(`   TOTAL:        ${currentTokens.toString().padStart(4)} / ${this.budget.maxTokens} tokens`);
+      lines.push(`   Available:    ${(available - currentTokens).toString().padStart(4)} tokens remaining`);
+      lines.push(`   Safety margin: ${this.budget.safetyMargin} tokens`);
+
+      // 6. Visual Progress Bar
+      const used = currentTokens;
+      const max = this.budget.maxTokens;
+      const percentage = (used / max) * 100;
+      const barWidth = 40;
+      const filled = Math.floor((used / max) * barWidth);
+      const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled);
+      lines.push('');
+      lines.push(`   Usage: [${bar}] ${percentage.toFixed(1)}%`);
+
+      if (currentTokens > available) {
+        lines.push('');
+        lines.push('   ⚠️  WARNING: Context exceeds safe limit!');
+      }
+
+      lines.push('='.repeat(60));
+
+      debugInfo = '\n' + lines.join('\n') + '\n';
+      console.log(debugInfo);
     }
 
     return {
       systemPrompt: this.formatSystemPromptWithKnowledge(this.systemPrompt, selectedKnowledge),
       knowledgeEntries: selectedKnowledge,
       conversationHistory: prunedHistory,
-      totalTokens: currentTokens
+      totalTokens: currentTokens,
+      debugInfo
     };
   }
 
@@ -135,11 +218,6 @@ IMPORTANT RULES:
         // Budget exhausted, stop adding older messages
         break;
       }
-    }
-
-    const removedCount = history.length - pruned.length;
-    if (removedCount > 0 && process.env.DEBUG === 'true') {
-      console.log(`[PRUNED] Removed ${removedCount} old messages to fit budget`);
     }
 
     return pruned;
