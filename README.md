@@ -31,11 +31,13 @@ cp .env.example .env
 3. Add your OpenAI API key to `.env`:
 ```bash
 OPENAI_API_KEY=your_api_key_here
-DEBUG=false                    # Set to true for detailed token usage logs
-MAX_TOKENS=1500                # Optional: Adjust token budget (default: 1500)
-TOP_K_RETRIEVAL=3              # Optional: Max knowledge entries to retrieve (default: 3)
-COMPRESSION_STRATEGY=prune     # Optional: prune (default) or summarize
-SUMMARY_MAX_TOKENS=500         # Optional: Max tokens for summaries (default: 500)
+DEBUG=false                         # Set to true for detailed token usage logs
+MAX_TOKENS=1500                     # Optional: Adjust token budget (default: 1500)
+TOP_K_RETRIEVAL=3                   # Optional: Max knowledge entries to retrieve (default: 3)
+COMPRESSION_STRATEGY=prune          # Optional: prune (default) or summarize
+SUMMARY_MAX_TOKENS_PCT=33           # Optional: Max summary tokens as % of MAX_TOKENS (default: 33%)
+ALLOW_SUMMARIZATION_FALLBACK=true   # Optional: Allow fallback to pruning (default: true)
+MIN_RECENT_MESSAGES=0               # Optional: Min recent messages to keep intact (default: 0)
 
 # Optional: Budget allocation percentages (default values shown)
 BUDGET_SAFETY_MARGIN_PCT=7     # Safety buffer [105 tokens for 1500]
@@ -50,7 +52,9 @@ BUDGET_CONVERSATION_PCT=43     # Conversation history [645 tokens for 1500]
 - `MAX_TOKENS` (optional): Maximum context window size (default: 1500)
 - `TOP_K_RETRIEVAL` (optional): Max knowledge entries per query (default: 3)
 - `COMPRESSION_STRATEGY` (optional): `prune` (default, fast) or `summarize` (preserves context)
-- `SUMMARY_MAX_TOKENS` (optional): Max tokens for AI-generated summaries (default: 500)
+- `SUMMARY_MAX_TOKENS_PCT` (optional): Max summary tokens as % of MAX_TOKENS (default: 33%)
+- `ALLOW_SUMMARIZATION_FALLBACK` (optional): Allow fallback to pruning for small message sets (default: true)
+- `MIN_RECENT_MESSAGES` (optional): Minimum recent messages to keep intact (default: 0)
 - `BUDGET_*_PCT` (optional): Budget allocation percentages (see above for defaults)
 
 4. Build the project:
@@ -139,7 +143,9 @@ Defined in `src/services/context-manager.ts`:
 
 ## What Happens When Conversation Gets Long
 
-The system supports two compression strategies (configurable via `COMPRESSION_STRATEGY`):
+The system supports two compression strategies (configurable via `COMPRESSION_STRATEGY`).
+
+**Important**: If the total context exceeds `MAX_TOKENS` (even when individual components are within their budgets), the system **automatically triggers aggressive compression** to reduce the conversation history and fit within the budget. See [Automatic Budget Enforcement](docs/configuration.md#automatic-budget-enforcement) for details.
 
 ### Strategy 1: Pruning (Default - FIFO)
 

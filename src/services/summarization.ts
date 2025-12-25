@@ -32,6 +32,13 @@ export class SummarizationService {
       .map(m => `${m.role}: ${m.content}`)
       .join('\n');
 
+    // Ensure minimum token count for API (OpenAI requires >= 1)
+    const minSummaryTokens = 50; // Reasonable minimum for a summary
+    const maxTokensForAPI = Math.max(
+      Math.min(targetTokens * 2, CONFIG.SUMMARY_MAX_TOKENS),
+      minSummaryTokens
+    );
+
     // Create summarization prompt
     const systemPrompt = `You are a conversation summarizer. Your task is to create a concise summary of the conversation that preserves key information, context, and important details.
 
@@ -39,7 +46,7 @@ The summary should:
 - Capture the main topics discussed
 - Preserve important facts, decisions, and conclusions
 - Maintain chronological flow
-- Be approximately ${Math.floor(targetTokens * 4)} characters (about ${targetTokens} tokens)
+- Be approximately ${Math.floor(Math.max(targetTokens, minSummaryTokens) * 4)} characters (about ${Math.max(targetTokens, minSummaryTokens)} tokens)
 - Use third person ("The user asked about...", "The assistant explained...")`;
 
     const userPrompt = `Summarize this conversation segment:\n\n${conversationText}`;
@@ -52,7 +59,7 @@ The summary should:
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.3, // Low temperature for consistent summaries
-        max_tokens: Math.min(targetTokens * 2, CONFIG.SUMMARY_MAX_TOKENS) // Allow up to 2x target tokens or configured max
+        max_tokens: maxTokensForAPI
       });
 
       const summaryContent = response.choices[0]?.message?.content || 'Summary unavailable';

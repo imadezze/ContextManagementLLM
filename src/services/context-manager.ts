@@ -81,11 +81,68 @@ IMPORTANT RULES:
 
     currentTokens += historyTokens;
 
-    // 4. Verify we're under budget
+    // 4. Verify we're under budget - if not, aggressively compress conversation
     const available = this.budget.maxTokens - this.budget.safetyMargin;
     if (currentTokens > available) {
       if (debug) {
         console.warn(`[WARNING] Context exceeds budget: ${currentTokens} > ${available}`);
+        console.log(`[INFO] Attempting aggressive compression to fit within budget...`);
+      }
+
+      // Calculate how much we need to reduce
+      const excess = currentTokens - available;
+      const systemAndKnowledgeTokens = TokenCounter.countText(this.systemPrompt) + knowledgeTokens;
+      const reducedConversationBudget = Math.max(
+        this.budget.conversationBudget - excess - 50, // Extra 50 token safety buffer
+        100 // Minimum 100 tokens for conversation
+      );
+
+      if (debug) {
+        console.log(`[INFO] Reducing conversation budget from ${this.budget.conversationBudget} to ${reducedConversationBudget} tokens`);
+      }
+
+      // Recompress conversation history with reduced budget
+      if (CONFIG.COMPRESSION_STRATEGY === 'summarize') {
+        if (debug) {
+          console.log(`[INFO] Using summarization strategy for aggressive compression`);
+          console.log(`[INFO] ALLOW_SUMMARIZATION_FALLBACK=${CONFIG.ALLOW_SUMMARIZATION_FALLBACK}`);
+        }
+        const result = await this.summarizeConversationHistory(
+          conversationHistory,
+          reducedConversationBudget,
+          systemAndKnowledgeTokens
+        );
+        compressedHistory = result.messages;
+        historyTokens = result.tokens;
+
+        if (debug) {
+          const hasSummary = compressedHistory.some(m => m.role === 'system' && m.content.includes('[Previous conversation summary'));
+          console.log(`[INFO] Summarization result: ${hasSummary ? 'Created summary' : 'No summary created (fallback to recent messages only)'}`);
+        }
+      } else {
+        if (debug) {
+          console.log(`[INFO] Using pruning strategy for aggressive compression`);
+        }
+        compressedHistory = this.pruneConversationHistory(
+          conversationHistory,
+          reducedConversationBudget,
+          systemAndKnowledgeTokens
+        );
+        historyTokens = TokenCounter.countMessages(compressedHistory);
+      }
+
+      // Recalculate total
+      currentTokens = systemAndKnowledgeTokens + historyTokens;
+
+      if (debug) {
+        console.log(`[INFO] After aggressive compression: ${currentTokens} tokens (target: ${available})`);
+      }
+
+      // If still over budget, warn but proceed
+      if (currentTokens > available) {
+        if (debug) {
+          console.warn(`[WARNING] Still exceeds budget after aggressive compression. Proceeding anyway.`);
+        }
       }
     }
 
@@ -129,11 +186,8 @@ IMPORTANT RULES:
         compressedHistory.forEach((msg, idx) => {
           const msgTokens = TokenCounter.countMessage(msg);
 
-          // Show full content for summary messages, truncate others
-          const isSummary = msg.role === 'system' && msg.content.includes('[Previous conversation summary');
-          const preview = isSummary
-            ? msg.content.replace(/\n/g, ' ')
-            : msg.content.substring(0, 50).replace(/\n/g, ' ') + '...';
+          // Show full content for all messages (replace newlines with spaces for readability)
+          const preview = msg.content.replace(/\n/g, ' ');
 
           lines.push(`   Msg ${idx + 1} [${msg.role}]: "${preview}" = ${msgTokens} tokens`);
         });
@@ -173,8 +227,9 @@ IMPORTANT RULES:
       const max = this.budget.maxTokens;
       const percentage = (used / max) * 100;
       const barWidth = 40;
-      const filled = Math.floor((used / max) * barWidth);
-      const bar = '█'.repeat(filled) + '░'.repeat(barWidth - filled);
+      const filled = Math.min(Math.floor((used / max) * barWidth), barWidth); // Clamp to barWidth
+      const empty = Math.max(barWidth - filled, 0); // Prevent negative
+      const bar = '█'.repeat(filled) + '░'.repeat(empty);
       lines.push('');
       lines.push(`   Usage: [${bar}] ${percentage.toFixed(1)}%`);
 
@@ -248,7 +303,13 @@ IMPORTANT RULES:
       const message = history[i];
       const messageTokens = TokenCounter.countMessage(message);
 
-      if (currentTokens + messageTokens <= actualBudget) {
+      // Keep message if:
+      // 1. It fits in the token budget, OR
+      // 2. We haven't reached MIN_RECENT_MESSAGES yet
+      const needsMoreMessages = pruned.length < CONFIG.MIN_RECENT_MESSAGES;
+      const fitsInBudget = currentTokens + messageTokens <= actualBudget;
+
+      if (fitsInBudget || needsMoreMessages) {
         pruned.unshift(message); // Add to front
         currentTokens += messageTokens;
       } else {
@@ -269,6 +330,7 @@ IMPORTANT RULES:
     budget: number,
     alreadyUsedTokens: number
   ): Promise<{ messages: Message[]; tokens: number }> {
+    const debug = process.env.DEBUG === 'true';
     const remaining = this.budget.maxTokens - this.budget.safetyMargin - alreadyUsedTokens;
     const actualBudget = Math.min(budget, remaining);
 
@@ -284,7 +346,13 @@ IMPORTANT RULES:
       const message = history[i];
       const messageTokens = TokenCounter.countMessage(message);
 
-      if (recentTokens + messageTokens <= actualBudget) {
+      // Keep message if:
+      // 1. It fits in the token budget, OR
+      // 2. We haven't reached MIN_RECENT_MESSAGES yet
+      const needsMoreMessages = recentMessages.length < CONFIG.MIN_RECENT_MESSAGES;
+      const fitsInBudget = recentTokens + messageTokens <= actualBudget;
+
+      if (fitsInBudget || needsMoreMessages) {
         recentMessages.unshift(message);
         recentTokens += messageTokens;
       } else {
@@ -301,10 +369,27 @@ IMPORTANT RULES:
     const oldMessages = history.slice(0, history.length - recentMessages.length);
 
     // Only summarize if we have enough old messages to make it worthwhile
+    // (unless ALLOW_SUMMARIZATION_FALLBACK is disabled, then always attempt summarization)
     const oldMessagesTokens = TokenCounter.countMessages(oldMessages);
-    if (!this.summarizationService.shouldSummarize(oldMessages.length, oldMessagesTokens)) {
-      // Just prune instead
+    const shouldSummarize = this.summarizationService.shouldSummarize(oldMessages.length, oldMessagesTokens);
+
+    if (debug) {
+      console.log(`   [Summarization check] Old messages: ${oldMessages.length} (${oldMessagesTokens} tokens)`);
+      console.log(`   [Summarization check] shouldSummarize: ${shouldSummarize} (requires >=4 messages AND >=100 tokens)`);
+      console.log(`   [Summarization check] ALLOW_SUMMARIZATION_FALLBACK: ${CONFIG.ALLOW_SUMMARIZATION_FALLBACK}`);
+    }
+
+    if (CONFIG.ALLOW_SUMMARIZATION_FALLBACK && !shouldSummarize) {
+      // Just prune instead (fallback enabled and conditions not met)
+      if (debug) {
+        console.log(`   ℹ️  Falling back to pruning: ${oldMessages.length} messages (${oldMessagesTokens} tokens) below threshold`);
+        console.log(`   ℹ️  Keeping only recent messages (no summary created)`);
+      }
       return { messages: recentMessages, tokens: recentTokens };
+    }
+
+    if (!shouldSummarize && debug) {
+      console.log(`   ⚠️  Forcing summarization despite low message count (ALLOW_SUMMARIZATION_FALLBACK=false)`);
     }
 
     // Calculate target token count for summary (aim for 30% of original)
