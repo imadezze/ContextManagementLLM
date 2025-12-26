@@ -8,8 +8,10 @@ import { run } from '@openai/agents';
 import { KnowledgeBaseService } from './services/knowledge-base.js';
 import { RetrievalService } from './services/retrieval.js';
 import { ContextManager } from './services/context-manager.js';
+import { MemoryService } from './services/memory.js';
+import { MemoryExtractionAgent } from './services/memory-extraction.js';
 import { createAgent } from './services/agent.js';
-import { Message } from './types/index.js';
+import { Message, MemoryEntry } from './types/index.js';
 import { CONFIG } from './config.js';
 
 async function main() {
@@ -24,6 +26,7 @@ async function main() {
   console.log('=====================');
   console.log(`Token Budget: ${CONFIG.MAX_TOKENS} tokens`);
   console.log(`Compression Strategy: ${CONFIG.COMPRESSION_STRATEGY} (from env: ${process.env.COMPRESSION_STRATEGY || 'not set'})`);
+  console.log(`Memory Extraction: ${CONFIG.MEMORY_EXTRACTION_MODE}`);
   console.log('Commands: "exit" to quit, "/save" to save conversation');
   console.log();
 
@@ -31,6 +34,11 @@ async function main() {
   const knowledgeBase = new KnowledgeBaseService('./data/tellia_assessment_demo.json');
   const retrievalService = new RetrievalService(knowledgeBase.getAllEntries());
   const contextManager = new ContextManager();
+  const memoryService = new MemoryService('./memory');
+  const memoryExtraction = new MemoryExtractionAgent();
+
+  console.log(`Loaded ${memoryService.getCount()} memories from storage`);
+  console.log();
 
   // Conversation state
   const conversationHistory: Message[] = [];
@@ -96,12 +104,20 @@ async function main() {
         timestamp: Date.now()
       });
 
+      // SELECT: Classify query and retrieve relevant memories
+      let relevantMemories: MemoryEntry[] = [];
+      if (CONFIG.MEMORY_EXTRACTION_MODE !== 'disabled') {
+        const categories = await memoryExtraction.classifyQuery(userInput);
+        relevantMemories = memoryService.getMemoriesByCategories(categories);
+      }
+
       // SELECT: Retrieve relevant knowledge
       const relevantKnowledge = retrievalService.retrieve(userInput);
 
       // COMPRESS: Build context with token management (supports pruning or summarization)
       const context = await contextManager.buildContext(
         conversationHistory,
+        relevantMemories,
         relevantKnowledge,
         userInput
       );
@@ -164,14 +180,32 @@ async function main() {
 
       // Only add to history if we got a response
       if (assistantResponse) {
-        conversationHistory.push({
+        const assistantMessage: Message = {
           role: 'assistant',
           content: assistantResponse,
           timestamp: Date.now()
-        });
+        };
+        conversationHistory.push(assistantMessage);
 
         console.log(`\nAssistant: ${assistantResponse}`);
         conversationLog.push(`## Assistant\n${assistantResponse}\n`);
+
+        // Extract memory from this exchange (realtime mode)
+        if (CONFIG.MEMORY_EXTRACTION_MODE === 'realtime') {
+          try {
+            const userMessage = conversationHistory[conversationHistory.length - 2]; // Get the user message that triggered this response
+            const extracted = await memoryExtraction.extractMemory(userMessage, assistantMessage);
+
+            if (extracted) {
+              memoryService.saveMemory(extracted.category, extracted.content);
+              if (process.env.DEBUG === 'true') {
+                console.log(`\n[DEBUG] Memory extracted: [${extracted.category}] ${extracted.content}`);
+              }
+            }
+          } catch (error) {
+            console.error('Memory extraction failed:', error);
+          }
+        }
       }
 
     } catch (error: any) {

@@ -60,8 +60,10 @@ async function testSummarizationStrategy() {
   console.log('🔄 Building context with SUMMARIZATION strategy...');
   console.log('⏳ This will call OpenAI API to summarize old messages...\n');
 
+  const memoryEntries: any[] = [];
   const context = await contextManager.buildContext(
     conversationHistory,
+    memoryEntries,
     knowledgeEntries,
     'Can you give me an example of using generics?'
   );

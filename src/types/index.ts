@@ -8,6 +8,13 @@ export interface KnowledgeEntry {
   content: string;
 }
 
+export interface MemoryEntry {
+  id: string;
+  category: string;
+  content: string;
+  date: string; // ISO timestamp
+}
+
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -16,6 +23,7 @@ export interface Message {
 
 export interface ContextWindow {
   systemPrompt: string;
+  memoryEntries: MemoryEntry[];
   knowledgeEntries: KnowledgeEntry[];
   conversationHistory: Message[];
   totalTokens: number;
@@ -25,6 +33,7 @@ export interface ContextWindow {
 export interface ContextBudget {
   maxTokens: number;
   systemPromptBudget: number;
+  memoryBudget: number;
   knowledgeBudget: number;
   conversationBudget: number;
   safetyMargin: number;

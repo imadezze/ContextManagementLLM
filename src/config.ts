@@ -18,8 +18,9 @@ export const CONFIG = {
   // Budget allocation percentages
   BUDGET_SAFETY_MARGIN_PCT: parseInt(process.env.BUDGET_SAFETY_MARGIN_PCT || '7', 10),
   BUDGET_SYSTEM_PROMPT_PCT: parseInt(process.env.BUDGET_SYSTEM_PROMPT_PCT || '10', 10),
-  BUDGET_KNOWLEDGE_PCT: parseInt(process.env.BUDGET_KNOWLEDGE_PCT || '40', 10),
-  BUDGET_CONVERSATION_PCT: parseInt(process.env.BUDGET_CONVERSATION_PCT || '43', 10),
+  BUDGET_MEMORY_PCT: parseInt(process.env.BUDGET_MEMORY_PCT || '15', 10),
+  BUDGET_KNOWLEDGE_PCT: parseInt(process.env.BUDGET_KNOWLEDGE_PCT || '28', 10),
+  BUDGET_CONVERSATION_PCT: parseInt(process.env.BUDGET_CONVERSATION_PCT || '40', 10),
 
   // Compression strategy: 'prune' or 'summarize'
   COMPRESSION_STRATEGY: (process.env.COMPRESSION_STRATEGY || 'prune') as 'prune' | 'summarize',
@@ -32,5 +33,17 @@ export const CONFIG = {
   ALLOW_SUMMARIZATION_FALLBACK: process.env.ALLOW_SUMMARIZATION_FALLBACK !== 'false',
 
   // Minimum number of recent messages to keep intact (not summarized)
-  MIN_RECENT_MESSAGES: parseInt(process.env.MIN_RECENT_MESSAGES || '0', 10)
+  MIN_RECENT_MESSAGES: parseInt(process.env.MIN_RECENT_MESSAGES || '0', 10),
+
+  // Memory system configuration
+  MEMORY_EXTRACTION_MODE: (process.env.MEMORY_EXTRACTION_MODE || 'disabled') as 'realtime' | 'batch' | 'disabled',
+  MEMORY_CATEGORIES: [
+    'user_preference',
+    'user_info',
+    'project_context',
+    'decision',
+    'instruction',
+    'fact',
+    'other'
+  ] as const
 } as const;

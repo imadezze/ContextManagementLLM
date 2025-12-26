@@ -3,7 +3,7 @@
  * Uses simple character-based approximation: 1 token ≈ 4 characters
  */
 
-import { Message, KnowledgeEntry } from '../types/index.js';
+import { Message, KnowledgeEntry, MemoryEntry } from '../types/index.js';
 
 export class TokenCounter {
   private static readonly CHARS_PER_TOKEN = 4;
@@ -41,5 +41,19 @@ export class TokenCounter {
    */
   static countKnowledgeEntries(entries: KnowledgeEntry[]): number {
     return entries.reduce((total, entry) => total + this.countKnowledgeEntry(entry), 0);
+  }
+
+  /**
+   * Count tokens in a memory entry (content only)
+   */
+  static countMemoryEntry(entry: MemoryEntry): number {
+    return this.countText(entry.content);
+  }
+
+  /**
+   * Count tokens in multiple memory entries
+   */
+  static countMemoryEntries(entries: MemoryEntry[]): number {
+    return entries.reduce((total, entry) => total + this.countMemoryEntry(entry), 0);
   }
 }

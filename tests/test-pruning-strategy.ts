@@ -42,6 +42,7 @@ async function testPruningStrategy() {
   console.log(`📊 Created ${conversationHistory.length} messages in conversation history\n`);
 
   // No knowledge entries for this test
+  const memoryEntries: any[] = [];
   const knowledgeEntries: KnowledgeEntry[] = [];
 
   // Build context with pruning strategy
@@ -49,6 +50,7 @@ async function testPruningStrategy() {
 
   const context = await contextManager.buildContext(
     conversationHistory,
+    memoryEntries,
     knowledgeEntries,
     'What was my first question?'
   );

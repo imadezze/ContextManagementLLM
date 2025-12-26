@@ -4,7 +4,7 @@
  * Supports both pruning (FIFO) and summarization strategies
  */
 
-import { Message, KnowledgeEntry, ContextWindow, ContextBudget } from '../types/index.js';
+import { Message, KnowledgeEntry, MemoryEntry, ContextWindow, ContextBudget } from '../types/index.js';
 import { TokenCounter } from '../utils/token-counter.js';
 import { CONFIG } from '../config.js';
 import { SummarizationService } from './summarization.js';
@@ -20,6 +20,7 @@ export class ContextManager {
       maxTokens,
       safetyMargin: Math.floor(maxTokens * CONFIG.BUDGET_SAFETY_MARGIN_PCT / 100),
       systemPromptBudget: Math.floor(maxTokens * CONFIG.BUDGET_SYSTEM_PROMPT_PCT / 100),
+      memoryBudget: Math.floor(maxTokens * CONFIG.BUDGET_MEMORY_PCT / 100),
       knowledgeBudget: Math.floor(maxTokens * CONFIG.BUDGET_KNOWLEDGE_PCT / 100),
       conversationBudget: Math.floor(maxTokens * CONFIG.BUDGET_CONVERSATION_PCT / 100)
     };
@@ -41,6 +42,7 @@ IMPORTANT RULES:
    */
   async buildContext(
     conversationHistory: Message[],
+    relevantMemories: MemoryEntry[],
     relevantKnowledge: KnowledgeEntry[],
     currentQuery: string
   ): Promise<ContextWindow> {
@@ -49,7 +51,15 @@ IMPORTANT RULES:
     // 1. Start with system prompt
     let currentTokens = TokenCounter.countText(this.systemPrompt);
 
-    // 2. Add knowledge entries (SELECT strategy)
+    // 2. Add memory entries (SELECT strategy - highest priority)
+    const selectedMemories = this.selectMemoryEntries(
+      relevantMemories,
+      this.budget.memoryBudget
+    );
+    const memoryTokens = TokenCounter.countMemoryEntries(selectedMemories);
+    currentTokens += memoryTokens;
+
+    // 3. Add knowledge entries (SELECT strategy)
     const selectedKnowledge = this.selectKnowledgeEntries(
       relevantKnowledge,
       this.budget.knowledgeBudget
@@ -57,7 +67,7 @@ IMPORTANT RULES:
     const knowledgeTokens = TokenCounter.countKnowledgeEntries(selectedKnowledge);
     currentTokens += knowledgeTokens;
 
-    // 3. Add conversation history (COMPRESS strategy - pruning or summarization)
+    // 4. Add conversation history (COMPRESS strategy - pruning or summarization)
     let compressedHistory: Message[];
     let historyTokens: number;
 
@@ -162,9 +172,23 @@ IMPORTANT RULES:
       lines.push(`   Budget: ${this.budget.systemPromptBudget} tokens`);
       lines.push(`   Status: ${systemTokens <= this.budget.systemPromptBudget ? '✓' : '✗'}`);
 
-      // 2. Knowledge Entries Detail
+      // 2. Memory Entries Detail
       lines.push('');
-      lines.push(`2. Knowledge Entries: ${knowledgeTokens} tokens (${selectedKnowledge.length} selected)`);
+      lines.push(`2. Memory Entries: ${memoryTokens} tokens (${selectedMemories.length} selected)`);
+      lines.push(`   Budget: ${this.budget.memoryBudget} tokens`);
+      lines.push(`   Status: ${memoryTokens <= this.budget.memoryBudget ? '✓' : '✗'}`);
+      if (selectedMemories.length > 0) {
+        selectedMemories.forEach((entry, idx) => {
+          const entryTokens = TokenCounter.countMemoryEntry(entry);
+          lines.push(`   Memory ${idx + 1} [${entry.category}]: "${entry.content.substring(0, 50)}..." = ${entryTokens} tokens`);
+        });
+      } else {
+        lines.push('   No relevant memories found');
+      }
+
+      // 3. Knowledge Entries Detail
+      lines.push('');
+      lines.push(`3. Knowledge Entries: ${knowledgeTokens} tokens (${selectedKnowledge.length} selected)`);
       lines.push(`   Budget: ${this.budget.knowledgeBudget} tokens`);
       lines.push(`   Status: ${knowledgeTokens <= this.budget.knowledgeBudget ? '✓' : '✗'}`);
       if (selectedKnowledge.length > 0) {
@@ -176,9 +200,9 @@ IMPORTANT RULES:
         lines.push('   No relevant knowledge entries found');
       }
 
-      // 3. Conversation History Detail
+      // 4. Conversation History Detail
       lines.push('');
-      lines.push(`3. Conversation History: ${historyTokens} tokens (${compressedHistory.length} messages)`);
+      lines.push(`4. Conversation History: ${historyTokens} tokens (${compressedHistory.length} messages)`);
       lines.push(`   Budget: ${this.budget.conversationBudget} tokens`);
       lines.push(`   Status: ${historyTokens <= this.budget.conversationBudget ? '✓' : '✗'}`);
       lines.push(`   Strategy: ${CONFIG.COMPRESSION_STRATEGY}`);
@@ -213,8 +237,9 @@ IMPORTANT RULES:
 
       // 5. Total Summary
       lines.push('');
-      lines.push('4. Summary:');
+      lines.push('5. Summary:');
       lines.push(`   System:       ${systemTokens.toString().padStart(4)} tokens (${((systemTokens/this.budget.systemPromptBudget)*100).toFixed(1)}% of ${this.budget.systemPromptBudget})`);
+      lines.push(`   Memory:       ${memoryTokens.toString().padStart(4)} tokens (${((memoryTokens/this.budget.memoryBudget)*100).toFixed(1)}% of ${this.budget.memoryBudget})`);
       lines.push(`   Knowledge:    ${knowledgeTokens.toString().padStart(4)} tokens (${((knowledgeTokens/this.budget.knowledgeBudget)*100).toFixed(1)}% of ${this.budget.knowledgeBudget})`);
       lines.push(`   Conversation: ${historyTokens.toString().padStart(4)} tokens (${((historyTokens/this.budget.conversationBudget)*100).toFixed(1)}% of ${this.budget.conversationBudget})`);
       lines.push(`   ${'─'.repeat(30)}`);
@@ -245,12 +270,38 @@ IMPORTANT RULES:
     }
 
     return {
-      systemPrompt: this.formatSystemPromptWithKnowledge(this.systemPrompt, selectedKnowledge),
+      systemPrompt: this.formatSystemPromptWithMemoryAndKnowledge(this.systemPrompt, selectedMemories, selectedKnowledge),
+      memoryEntries: selectedMemories,
       knowledgeEntries: selectedKnowledge,
       conversationHistory: compressedHistory,
       totalTokens: currentTokens,
       debugInfo
     };
+  }
+
+  /**
+   * Select memory entries that fit within budget (most recent first)
+   */
+  private selectMemoryEntries(
+    entries: MemoryEntry[],
+    budget: number
+  ): MemoryEntry[] {
+    const selected: MemoryEntry[] = [];
+    let currentTokens = 0;
+
+    // Memories are already sorted by date (most recent first) from MemoryService
+    for (const entry of entries) {
+      const entryTokens = TokenCounter.countMemoryEntry(entry);
+
+      if (currentTokens + entryTokens <= budget) {
+        selected.push(entry);
+        currentTokens += entryTokens;
+      } else {
+        break; // Budget exhausted
+      }
+    }
+
+    return selected;
   }
 
   /**
@@ -422,20 +473,35 @@ IMPORTANT RULES:
   }
 
   /**
-   * Format system prompt with knowledge entries
+   * Format system prompt with memory and knowledge entries
    */
-  private formatSystemPromptWithKnowledge(
+  private formatSystemPromptWithMemoryAndKnowledge(
     basePrompt: string,
+    memories: MemoryEntry[],
     knowledge: KnowledgeEntry[]
   ): string {
-    if (knowledge.length === 0) {
-      return basePrompt + '\n\n[No relevant knowledge entries found]';
+    let result = basePrompt;
+
+    // Add memories first (highest priority)
+    if (memories.length > 0) {
+      const memoryText = memories
+        .map(entry => `[${entry.category}] ${entry.content}`)
+        .join('\n');
+      result += `\n\n## Important Context (from Memory):\n\n${memoryText}`;
     }
 
-    const knowledgeText = knowledge
-      .map(entry => `### ${entry.title}\n${entry.content}`)
-      .join('\n\n');
+    // Add knowledge entries
+    if (knowledge.length > 0) {
+      const knowledgeText = knowledge
+        .map(entry => `### ${entry.title}\n${entry.content}`)
+        .join('\n\n');
+      result += `\n\n## Knowledge Base:\n\n${knowledgeText}`;
+    }
 
-    return `${basePrompt}\n\n## Knowledge Base:\n\n${knowledgeText}`;
+    if (memories.length === 0 && knowledge.length === 0) {
+      result += '\n\n[No relevant context found]';
+    }
+
+    return result;
   }
 }
